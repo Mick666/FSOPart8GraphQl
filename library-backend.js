@@ -105,12 +105,12 @@ type Mutation {
     addBook(
         title: String!
         author: String!
-        published: Int!
+        published: String!
         genres: [String!]!
     ): Book
     editAuthor(
         name: String!
-        setBornTo: Int!
+        setBornTo: String!
     ): Author
 }
 `
@@ -140,7 +140,7 @@ const resolvers = {
               invalidArgs: args.name
             })
           }
-          const book = { ...args, id: uuid() }
+          const book = { ...args, id: uuid(), published: Number(args.published) }
           if (!authors.find(a => a.author === args.author)) {
               authors = authors.concat({ name: args.author, id: uuid() })
           }
@@ -148,11 +148,14 @@ const resolvers = {
           return book
       },
       editAuthor: (root, args) => {
+            console.log('Made it this far')
             const author = authors.find(a => a.name === args.name)
+            console.log(author)
             if (!author) return null
 
-            const updatedAuthor = { ...author, born: args.setBornTo}
+            const updatedAuthor = { ...author, born: Number(args.setBornTo)}
             authors = authors.map(a => a.name === args.name ? updatedAuthor : a)
+            console.log(updatedAuthor)
             return updatedAuthor
       }
   }
