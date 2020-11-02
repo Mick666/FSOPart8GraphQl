@@ -6,6 +6,7 @@ const Author = require('./models/author')
 const User = require('./models/user')
 
 const jwt = require('jsonwebtoken')
+const author = require('./models/author')
 
 const JWT_SECRET = 'NEED_HERE_A_SECRET_KEY'
 
@@ -163,10 +164,12 @@ const resolvers = {
     Query: {
         bookCount: () => Book.collection.countDocuments(),
         authorCount: () => Author.collection.countDocuments(),
-        allBooks: (root, args) => {
-            if (!args.author && !args.genre) return books
+        allBooks: async (root, args) => {
+            const bookSearch = await Book.find({}).populate('author')
+            console.log(bookSearch)
+            if (!args.author && !args.genre) return await Book.find({}).populate('author')
             else if (!args.author) {
-                return books.filter(book => book.genres.includes(args.genre))
+                return await Book.find({ genres: args.genre }).populate('author')
             } else if (!args.genre) {
                 return books.filter(book => book.author === args.author)
             } else {
@@ -183,7 +186,22 @@ const resolvers = {
     },
     Mutation: {
         addBook: async (root, args, context) => {
-            const book = new Book({ ...args })
+            let authorArg 
+            if (mongoose.isValidObjectId(args.author)) {
+                authorArg = args.author
+            } else {
+                const authorSearch = await Author.find({ name: args.author })
+                if (authorSearch.length > 0) {
+                    authorArg = authorSearch[0]._id
+                } else {
+                    const newAuthor = new Author({ name: args.author })
+                    await newAuthor.save()
+                    console.log(newAuthor)
+                    authorArg = newAuthor._id
+                }
+            }
+
+            const book = new Book({ ...args, author: authorArg._id ? authorArg._id : authorArg})
 
             const currentUser = context.currentUser
 
@@ -198,7 +216,9 @@ const resolvers = {
                     invalidArgs: args,
                 })
             }
-            return book
+            const savedBook = await Book.findById(book._id).populate('author')
+            console.log(savedBook)
+            return savedBook
         },
         addAuthor: async (root, args) => {
             const author = new Author({ ...args })
