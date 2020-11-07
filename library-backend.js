@@ -22,85 +22,6 @@ mongoose.connect(MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true,
         console.log('error connection to MongoDB:', error.message)
     })
 
-
-let authors = [
-    {
-        name: 'Robert Martin',
-        id: "afa51ab0-344d-11e9-a414-719c6709cf3e",
-        born: 1952,
-    },
-    {
-        name: 'Martin Fowler',
-        id: "afa5b6f0-344d-11e9-a414-719c6709cf3e",
-        born: 1963
-    },
-    {
-        name: 'Fyodor Dostoevsky',
-        id: "afa5b6f1-344d-11e9-a414-719c6709cf3e",
-        born: 1821
-    },
-    {
-        name: 'Joshua Kerievsky', // birthyear not known
-        id: "afa5b6f2-344d-11e9-a414-719c6709cf3e",
-    },
-    {
-        name: 'Sandi Metz', // birthyear not known
-        id: "afa5b6f3-344d-11e9-a414-719c6709cf3e",
-    },
-]
-
-let books = [
-    {
-        title: 'Clean Code',
-        published: 2008,
-        author: '5f9626e68a7cd22ddc43a5d2',
-        id: "afa5b6f4-344d-11e9-a414-719c6709cf3e",
-        genres: ['refactoring']
-    },
-    {
-        title: 'Agile software development',
-        published: 2002,
-        author: '5f9626e68a7cd22ddc43a5d2',
-        id: "afa5b6f5-344d-11e9-a414-719c6709cf3e",
-        genres: ['agile', 'patterns', 'design']
-    },
-    {
-        title: 'Refactoring, edition 2',
-        published: 2018,
-        author: '5f9627a28a7cd22ddc43a5d3',
-        id: "afa5de00-344d-11e9-a414-719c6709cf3e",
-        genres: ['refactoring']
-    },
-    {
-        title: 'Refactoring to patterns',
-        published: 2008,
-        author: '5f9627d5c61cf32e11dca8bf',
-        id: "afa5de01-344d-11e9-a414-719c6709cf3e",
-        genres: ['refactoring', 'patterns']
-    },
-    {
-        title: 'Practical Object-Oriented Design, An Agile Primer Using Ruby',
-        published: 2012,
-        author: '5f9627e2c61cf32e11dca8c0',
-        id: "afa5de02-344d-11e9-a414-719c6709cf3e",
-        genres: ['refactoring', 'design']
-    },
-    {
-        title: 'Crime and punishment',
-        published: 1866,
-        author: '5f9627ac8a7cd22ddc43a5d4',
-        id: "afa5de03-344d-11e9-a414-719c6709cf3e",
-        genres: ['classic', 'crime']
-    },
-    {
-        title: 'The Demon ',
-        published: 1872,
-        author: '5f9627ac8a7cd22ddc43a5d4',
-        id: "afa5de04-344d-11e9-a414-719c6709cf3e",
-        genres: ['classic', 'revolution']
-    },
-]
-
 const typeDefs = gql`
 type Book {
   title: String!
@@ -163,6 +84,17 @@ type Subscription {
 }
 `
 
+const countAuthors = (books) => {
+    let authors = {}
+
+    books.forEach(b => {
+        if (authors[b.author]) authors[b.author]++
+        else authors[b.author] = 1
+    })
+
+    return authors
+}
+
 const resolvers = {
     Query: {
         bookCount: () => Book.collection.countDocuments(),
@@ -172,19 +104,26 @@ const resolvers = {
             if (!args.author && !args.genre) return await Book.find({}).populate('author')
             else if (!args.author) {
                 return await Book.find({ genres: args.genre }).populate('author')
-            } else if (!args.genre) {
-                return books.filter(book => book.author === args.author)
-            } else {
-                return books.filter(book => book.author === args.author && book.genres.includes(args.genre))
             }
+            //  else if (!args.genre) {
+            //     return books.filter(book => book.author === args.author)
+            // } else {
+            //     return books.filter(book => book.author === args.author && book.genres.includes(args.genre))
+            // }
         },
-        allAuthors: () => Author.find({}),
+        allAuthors: async () => {
+            const authors = await Author.find({})
+            const books = await Book.find({})
+            const bookCount = countAuthors(books)
+
+            return authors.map(a => {
+                let author = { ...a.toObject(), bookCount: bookCount[a._id] ? bookCount[a._id] : 0}
+                return author
+            })
+        },
         me: (root, args, context) => {
             return context.currentUser
         }
-    },
-    Author: {
-        bookCount: (root) => Book.collection.countDocuments({ author: { $in: [root._id] } })
     },
     Mutation: {
         addBook: async (root, args, context) => {
